@@ -1,0 +1,4 @@
+import Laws
+
+main = return ()
+

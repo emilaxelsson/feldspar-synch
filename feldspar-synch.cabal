@@ -36,3 +36,16 @@ library
   default-extensions:
     FlexibleContexts
     TypeFamilies
+
+test-suite Misc
+  type: exitcode-stdio-1.0
+
+  hs-source-dirs: tests
+
+  main-is: Misc.hs
+
+  default-language: Haskell2010
+
+  build-depends:
+    base,
+    feldspar-synch
