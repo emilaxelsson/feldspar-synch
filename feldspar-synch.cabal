@@ -17,9 +17,7 @@ library
 
   exposed-modules:
     Feldspar.Synch.System
-    Feldspar.Synch.Stream.Internal
-    Feldspar.Synch.Stream
-    -- Feldspar.Synch
+    Feldspar.Synch
 
   -- other-modules:
 
@@ -49,3 +47,4 @@ test-suite Misc
   build-depends:
     base,
     feldspar-synch
+
