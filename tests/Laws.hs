@@ -10,8 +10,6 @@ import Feldspar.Synch.System
 -- Proof of applicative laws for `System`
 --------------------------------------------------------------------------------
 
--- The same proofs can be used for `Stream`
-
 -- identity: pure id <*> v = v
 appLaw1 :: System a -> [System a]
 appLaw1 v@(System v') =
