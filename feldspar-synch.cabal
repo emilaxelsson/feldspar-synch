@@ -48,3 +48,22 @@ test-suite Misc
     base,
     feldspar-synch
 
+test-suite Synth
+  type: exitcode-stdio-1.0
+
+  hs-source-dirs: examples
+
+  main-is: Synth.hs
+
+  default-language: Haskell2010
+
+  default-extensions:
+    ScopedTypeVariables
+
+  build-depends:
+    base,
+    feldspar-language,
+    feldspar-io,
+    feldspar-synch,
+    language-c-quote
+
