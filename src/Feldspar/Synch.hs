@@ -137,7 +137,6 @@ latch :: Type a
 latch def = feedback def $ proc arg@((lock,a),aPrev) -> do
     b <- store <<< arr (\((lock,a),aPrev) -> lock ? aPrev $ a) -< arg
     returnA -< (b,b)
-  -- TODO sharing?
 
 -- | The output stream will hold \"interesting\" input values for the specified
 -- number of cycles. The given predicate decides which values are interesting.
@@ -150,7 +149,6 @@ holdPred interesting n = store >>> proc as -> do
     hs   <- hold n -< is
     lock <- arr (\(i,iHold) -> not i && iHold) -< (is,hs)
     latch Nothing -< (lock,as)
-  -- TODO Check sharing
 
 -- | A version of 'holdPred' that generates more compact code (but probably not
 -- better code)
