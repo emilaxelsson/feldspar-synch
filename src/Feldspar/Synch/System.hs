@@ -31,3 +31,9 @@ execSystem (System sys) = do
     next <- sys
     while (return true) (next >> return ())
 
+-- | Run a system for N iterations, discarding its results
+execSystemN :: Length -> System a -> Program ()
+execSystemN n (System sys) = do
+    next <- sys
+    for 0 (value (n - 1)) $ \_ -> next >> return ()
+
