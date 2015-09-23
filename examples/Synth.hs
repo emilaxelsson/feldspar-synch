@@ -1,6 +1,10 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- | A simple synthesizer
+--
+-- The 'runSynth' method requires GCC to be installed and the ALSA C library.
+
 module Main where
 
 

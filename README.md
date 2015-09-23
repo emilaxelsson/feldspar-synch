@@ -6,8 +6,6 @@ Synchronous streams for Feldspar
 
 [Synth.hs](../../tree/master/examples/Synth.hs) is a simple synthesizer defined using this library.
 
-In order to run it (see the `runSynth` method), you need to have GCC installed and the ALSA C library (`asound`).
-
 # Installation
 
 To use this library, you need the development version of several Feldspar-related packages:
@@ -17,5 +15,5 @@ To use this library, you need the development version of several Feldspar-relate
   * <https://github.com/emwap/feldspar-compiler-shim>
   * <https://github.com/emilaxelsson/imperative-edsl>
   * <https://github.com/emilaxelsson/feldspar-io>
-  
+
 These can all be installed with the `cabal install` command (preferrably in a clean sandbox, to avoid dependency problems).
