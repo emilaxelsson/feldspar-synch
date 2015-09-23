@@ -84,9 +84,9 @@ stepAngle freq = 2*pi*freq/sampleRate
 genSine :: Synch Frequency (Data Double)
 genSine = arr stepAngle >>> cycleStep 0 (2*pi) >>> arr sin
 
-bufferLength = 25000  -- Sound device buffer length, 90ms
-periodLength = 3000  -- Chunk length (approximate main loop period), 30ms
-holdTime     = 100     -- 10 cycles = 300ms
+bufferLength = 25000  -- Sound device buffer length, 25ms
+periodLength = 3000   -- Chunk length (approximate main loop period), 3ms
+holdTime     = 100    -- 100 cycles = 300ms
 
 synth :: ALSA -> PCM -> Data Length -> Synch () ()
 synth alsa pcm n
