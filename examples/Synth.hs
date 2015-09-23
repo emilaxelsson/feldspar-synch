@@ -108,10 +108,7 @@ synthMain = do
                  --      we get an array declaration of unknown length.
     execSystem $ runSynch $ synth alsa pcm n
 
-runSynth = compileAndRun
-    ["-Ipath/to/feldspar-compiler/lib/Feldspar/C"]
-    synthMain
-    ["m","asound"]
+runSynth = compileAndRun [] synthMain ["m","asound"]
 
 main = icompile synthMain
 
