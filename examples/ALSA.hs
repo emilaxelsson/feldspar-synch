@@ -1,5 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
+-- | A simple binding to the ALSA C library
+
 module ALSA
   ( PCM
   , ALSA (..)

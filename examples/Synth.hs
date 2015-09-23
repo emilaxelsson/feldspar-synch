@@ -90,12 +90,12 @@ holdTime     = 100     -- 10 cycles = 300ms
 
 synth :: ALSA -> PCM -> Data Length -> Synch () ()
 synth alsa pcm n
-      =   arrSource getch
-      >>> holdPred (/=0) holdTime
-      >>> arr interpretChar
-      >>> arr interpretKey
-      >>> chunk n (genSine >>> arr distort >>> arr quantize)
-      >>> arrProg (writePCM alsa pcm)
+    =   arrSource getch
+    >>> holdPred (/=0) holdTime
+    >>> arr interpretChar
+    >>> arr interpretKey
+    >>> chunk n (genSine >>> arr distort >>> arr quantize)
+    >>> arrProg (writePCM alsa pcm)
   where
     distort x = sign * x * x
       where sign = x>=0 ? 1 $ (-1)  -- because `signum` doesn't work
