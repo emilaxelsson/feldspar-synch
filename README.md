@@ -8,7 +8,7 @@ Synchronous streams for Feldspar
 
 # Installation
 
-To use this library, you need the development version of several Feldspar-related packages:
+To use this library, you need the development versions of several Feldspar-related packages:
 
   * <https://github.com/Feldspar/feldspar-language>
   * <https://github.com/Feldspar/feldspar-compiler>
