@@ -37,3 +37,9 @@ execSystemN n (System sys) = do
     next <- sys
     for 0 (value (n - 1)) $ \_ -> next >> return ()
 
+-- | Run a system as long as it returns 'true'
+execSystemWhile :: System (Data Bool) -> Program ()
+execSystemWhile (System sys) = do
+    next <- sys
+    while next (return ())
+
