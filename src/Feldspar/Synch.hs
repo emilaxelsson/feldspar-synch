@@ -57,6 +57,17 @@ interactSynch (Synch init) = do
         b <- runKleisli f =<< fget stdin
         fput stdout "" b ""
 
+-- | Add an initialization action to a synchronous stream transformer
+initSynch :: Program a -> (a -> Synch b c) -> Synch b c
+initSynch p k = Synch $ do
+    Synch init <- fmap k p
+    init
+
+-- | An identity stream transformer that runs the given action in every
+-- iteration
+actSynch :: Program () -> Synch a a
+actSynch p = Synch $ stepper $ \a -> p >> return a
+
 -- | Helper function for creating stream transformers from monadic code.
 -- Typically used as
 --
