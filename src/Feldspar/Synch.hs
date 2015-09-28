@@ -46,6 +46,17 @@ runSynch (Synch init) = System $ do
     f <- init
     return $ runKleisli f single
 
+-- | Run a synchronous stream transformer with stdin/stdout as input/output
+interactSynch
+    :: (Type a, Formattable a, Type b, Formattable b)
+    => Synch (Data a) (Data b)
+    -> Program ()
+interactSynch (Synch init) = do
+    f <- init
+    while (return true) $ do
+        b <- runKleisli f =<< fget stdin
+        fput stdout "" b ""
+
 -- | Helper function for creating stream transformers from monadic code.
 -- Typically used as
 --
