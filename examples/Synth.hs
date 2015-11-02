@@ -66,7 +66,7 @@ claviature = "zsxdcvgbhnjm,"
 interpretChar :: Data Word8 -> Key
 interpretChar = switch 0 table
   where
-    cs    = P.map (value . P.fromIntegral . Char.ord) claviature
+    cs    = P.map (P.fromIntegral . Char.ord) claviature
     table = P.zip cs (P.map value [3..])  -- C has key 3
 
 -- | Map a key to the corresponding frequency. Frequency 0 maps to key 0.
