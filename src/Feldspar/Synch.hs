@@ -141,7 +141,7 @@ hold
 hold n = arr (\a -> a ? n $ 0) >>> countDown >>> arr (>0)
 
 -- | Create a stream of values that cycle through the given range, separated by
--- the given step length. It is assumed that @0 < step < hi-lo@.
+-- the given step length. It is assumed that @0 < stepLen < hi-lo@.
 cycleStep :: (Numeric a, Ord a)
     => Data a                   -- ^ From
     -> Data a                   -- ^ To
