@@ -10,6 +10,7 @@ module ALSA
   , formatBits
   , importALSA
   , quantize
+  , dequantize
   ) where
 
 
@@ -298,4 +299,9 @@ importALSA = do
 --- the range [minBound+1, maxBound]
 quantize :: forall a . (Numeric a, Feldspar.RealFloat a) => Data a -> Data Int16
 quantize a = Feldspar.round (a * fromIntegral (maxBound :: Int16) :: Data a)
+
+-- | Convert a floating point value in the range [-1,1] to a 16-bit integer in
+--- the range [minBound+1, maxBound]
+dequantize :: forall a . (Numeric a, Fraction a) => Data Int16 -> Data a
+dequantize a = i2n a / fromIntegral (maxBound :: Int16)
 
