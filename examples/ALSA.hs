@@ -4,6 +4,7 @@
 
 module ALSA
   ( PCM
+  , StreamMode (..)
   , ALSA (..)
   , sampleRate
   , formatBits
@@ -11,8 +12,11 @@ module ALSA
   , quantize
   ) where
 
+
+
 import Feldspar
 import Feldspar.IO
+import Feldspar.IO.Internal (Object (..))
 
 import Language.C.Quote.C
 
@@ -169,6 +173,7 @@ initialize_pcm_def = [cedecl|
 // Returns the period size (number of samples per channel in each chunk written
 // to the sound card)
 typename uint32_t initialize_pcm(typename snd_pcm_t **handle,
+                                 typename snd_pcm_stream_t mode,
                                  typename uint32_t channels,
                                  typename uint32_t buffer_time,
                                  typename uint32_t period_time)
@@ -178,7 +183,7 @@ typename uint32_t initialize_pcm(typename snd_pcm_t **handle,
     typename snd_pcm_uframes_t buffer_size;
     typename snd_pcm_uframes_t period_size;
 
-    snd_pcm_open(handle, "default", SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK);
+    snd_pcm_open(handle, "default", mode, SND_PCM_NONBLOCK);
     snd_pcm_hw_params_alloca(&hwparams);
     snd_pcm_sw_params_alloca(&swparams);
     set_hwparams(*handle, hwparams, channels, &buffer_time, &period_time, &buffer_size, &period_size);
@@ -197,12 +202,25 @@ static int write_pcm(typename snd_pcm_t *handle, typename int16_t *samples, type
 }
 |]
 
+read_pcm_def = [cedecl|
+// Returns how many samples were read
+static int read_pcm(typename snd_pcm_t *handle, typename int16_t *samples, typename uint32_t length)
+{
+    snd_pcm_wait(handle, -1);
+    snd_pcm_readi(handle, samples, length);
+}
+|]
+
 newtype PCM = PCM {unPCM :: Object}
+
+data StreamMode = Playback | Capture
+  deriving (Show)
 
 data ALSA = ALSA
     { newPCM   :: Program PCM
-    , initPCM  :: PCM -> Data Word32 -> Data Word32 -> Data Word32 -> Program (Data Length)
+    , initPCM  :: PCM -> StreamMode -> Data Word32 -> Data Word32 -> Data Word32 -> Program (Data Length)
     , writePCM :: PCM -> Data [Int16] -> Program ()
+    , readPCM  :: PCM -> Data Length -> Program (Data [Int16])
     , closePCM :: PCM -> Program ()
     }
 
@@ -219,25 +237,42 @@ formatBits = 16
 newPCM_ :: Program PCM
 newPCM_ = fmap PCM $ newObject "snd_pcm_t"
 
-initPCM_ :: PCM -> Data Word32 -> Data Word32 -> Data Word32 -> Program (Data Length)
-initPCM_ pcm nChan bufTime perTime = callFun "initialize_pcm"
-    [ ObjAddrArg $ unPCM pcm
-    , ValArg nChan
-    , ValArg bufTime
-    , ValArg perTime
+initPCM_
+    :: PCM -> StreamMode -> Data Word32 -> Data Word32 -> Data Word32
+    -> Program (Data Length)
+initPCM_ pcm mode nChan bufTime perTime = callFun "initialize_pcm"
+    [ addr $ objArg $ unPCM pcm
+    , objArg modeObj
+    , valArg nChan
+    , valArg bufTime
+    , valArg perTime
     ]
+  where
+    modeObj = Object False "snd_pcm_stream_t" $ case mode of
+        Playback -> "SND_PCM_STREAM_PLAYBACK"
+        Capture  -> "SND_PCM_STREAM_CAPTURE"
 
 writePCM_ :: PCM -> Data [Int16] -> Program ()
 writePCM_ pcm samps = do
     samps' <- unsafeThawArr samps  -- Not safe in a concurrent setting
     callProc "write_pcm"
-        [ ObjArg $ unPCM pcm
-        , ArrArg samps'
-        , ValArg (getLength samps)
+        [ objArg $ unPCM pcm
+        , arrArg samps'
+        , valArg (getLength samps)
         ]
 
+readPCM_ :: PCM -> Data Length -> Program (Data [Int16])
+readPCM_ pcm len = do
+    samps <- newArr len
+    callProc "read_pcm"
+        [ objArg $ unPCM pcm
+        , arrArg samps
+        , valArg len
+        ]
+    freezeArr samps len
+
 closePCM_ :: PCM -> Program ()
-closePCM_ pcm = callProc "snd_pcm_close" [ObjArg $ unPCM pcm]
+closePCM_ pcm = callProc "snd_pcm_close" [objArg $ unPCM pcm]
 
 importALSA :: Program ALSA
 importALSA = do
@@ -250,10 +285,12 @@ importALSA = do
     addDefinition set_swparams_def
     addDefinition initialize_pcm_def
     addDefinition write_pcm_def
+    addDefinition read_pcm_def
     return $ ALSA
       { newPCM   = newPCM_
       , initPCM  = initPCM_
       , writePCM = writePCM_
+      , readPCM  = readPCM_
       , closePCM = closePCM_
       }
 

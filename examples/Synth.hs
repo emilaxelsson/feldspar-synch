@@ -107,12 +107,12 @@ synthMain = do
     addInclude "<math.h>"
     alsa@(ALSA {..}) <- importALSA
     pcm <- newPCM
-    n   <- initPCM pcm 1 bufferLength periodLength
+    n   <- initPCM pcm Playback 1 bufferLength periodLength
     let n = 132  -- TODO n must currently be known statically because otherwise
                  --      we get an array declaration of unknown length.
     execSystem $ runSynch $ synth alsa pcm n
 
-runSynth = compileAndRun [] synthMain ["m","asound"]
+runSynth = compileAndRun [] synthMain ["-lm","-lasound"]
 
 main = icompile synthMain
 
