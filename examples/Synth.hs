@@ -16,8 +16,6 @@ import qualified Data.Char as Char
 import Feldspar
 import Feldspar.IO
 
-import Language.C.Quote.C
-
 import Feldspar.Synch.System
 import Feldspar.Synch
 

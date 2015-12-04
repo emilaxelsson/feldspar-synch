@@ -19,8 +19,6 @@ import Feldspar
 import Feldspar.IO
 import Feldspar.IO.Internal (Object (..))
 
-import Language.C.Quote.C
-
 
 
 -- | Apparently @snd_pcm_hw_params_alloca@ expands to @alloca@ which is
