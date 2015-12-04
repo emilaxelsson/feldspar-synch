@@ -106,7 +106,8 @@ synthMain = do
     alsa@(ALSA {..}) <- importALSA
     pcm <- newPCM
     n   <- initPCM pcm Playback 1 bufferLength periodLength
-    let n = 132  -- TODO n must currently be known statically because otherwise
+    printf "n=%d\n" n
+    let n = 137  -- TODO n must currently be known statically because otherwise
                  --      we get an array declaration of unknown length.
     execSystem $ runSynch $ synth alsa pcm n
 
