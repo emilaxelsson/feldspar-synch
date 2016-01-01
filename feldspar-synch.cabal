@@ -33,6 +33,7 @@ library
 
   default-extensions:
     FlexibleContexts
+    RecordWildCards
     TypeFamilies
 
 test-suite Misc
