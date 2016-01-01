@@ -200,7 +200,7 @@ chunk n (Synch init) = store >>> Synch (do
     f   <- init
     arr <- newArr n
     stepper $ \a -> do
-      for 0 (n-1) $ \i -> do
+      for (0,1,Excl n) $ \i -> do
         b <- runKleisli f a
         setArr i b arr
       freezeArr arr n

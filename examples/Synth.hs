@@ -110,7 +110,9 @@ synthMain = do
                  --      we get an array declaration of unknown length.
     execSystem $ runSynch $ synth alsa pcm n
 
-runSynth = compileAndRun [] synthMain ["-lm","-lasound"]
+runSynth = runCompiled'
+    defaultExtCompilerOpts {externalFlagsPost = ["-lm","-lasound"]}
+    synthMain
 
 main = icompile synthMain
 

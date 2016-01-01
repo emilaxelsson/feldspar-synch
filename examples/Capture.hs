@@ -48,7 +48,7 @@ captureMain = do
                  --      we get an array declaration of unknown length.
     execSystem $ runSynch $ capture alsa capt play n
 
-runCapture = compileAndRun [] captureMain ["-lm","-lasound"]
+runCapture = runCompiled [] captureMain ["-lm","-lasound"]
 
 main = icompile captureMain
 

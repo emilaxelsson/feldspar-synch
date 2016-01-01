@@ -35,7 +35,7 @@ execSystem (System sys) = do
 execSystemN :: Length -> System a -> Program ()
 execSystemN n (System sys) = do
     next <- sys
-    for 0 (value (n - 1)) $ \_ -> next >> return ()
+    for (0,1,Excl (value n)) $ \_ -> next >> return ()
 
 -- | Run a system as long as it returns 'true'
 execSystemWhile :: System (Data Bool) -> Program ()
