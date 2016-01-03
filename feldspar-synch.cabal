@@ -59,6 +59,7 @@ test-suite Synth
   default-language: Haskell2010
 
   default-extensions:
+    RecordWildCards
     ScopedTypeVariables
 
   build-depends:
