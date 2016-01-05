@@ -21,14 +21,6 @@ import Feldspar.IO.Internal (Object (..))
 
 
 
--- | Apparently @snd_pcm_hw_params_alloca@ expands to @alloca@ which is
--- undefined in C99. The following definition works in GCC.
-alloca_def = [cedecl|$esc:(
-"#if __STDC_VERSION__ >= 199901L\n\
-\#define alloca __builtin_alloca\n\
-\#endif"
-)|]
-
 format_def = [cedecl|
 // Sample format
 static typename snd_pcm_format_t format = SND_PCM_FORMAT_S16;
@@ -276,7 +268,7 @@ closePCM_ pcm = callProc "snd_pcm_close" [objArg $ unPCM pcm]
 importALSA :: Program ALSA
 importALSA = do
     addInclude "<alsa/asoundlib.h>"
-    addDefinition alloca_def
+    addInclude "<alloca.h>"
     addDefinition format_def
     addDefinition format_bits_def
     addDefinition rate_def
