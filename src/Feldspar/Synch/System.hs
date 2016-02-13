@@ -3,7 +3,6 @@ module Feldspar.Synch.System where
 
 
 import Feldspar
-import Feldspar.IO
 
 
 
@@ -11,13 +10,13 @@ import Feldspar.IO
 --
 -- @`System` a@ can be thought of as an infinite stream of @a@ values with
 -- interleaved IO: `IO (a, IO (a, IO (a, ...)))`
-newtype System a = System { unSystem :: Program (Program a) }
+newtype System m a = System { unSystem :: m (m a) }
 
-instance Functor System
+instance Functor m => Functor (System m)
   where
     fmap f (System sys) = System $ fmap (fmap f) sys
 
-instance Applicative System
+instance Monad m => Applicative (System m)
   where
     pure = System . return . return
     System initf <*> System inita = System $ do
@@ -26,19 +25,19 @@ instance Applicative System
         return $ nextf <*> nexta
 
 -- | Run a system forever, discarding its results
-execSystem :: System a -> Program ()
+execSystem :: MonadComp m => System m a -> m ()
 execSystem (System sys) = do
     next <- sys
     while (return true) (next >> return ())
 
 -- | Run a system for N iterations, discarding its results
-execSystemN :: Length -> System a -> Program ()
+execSystemN :: MonadComp m => Length -> System m a -> m ()
 execSystemN n (System sys) = do
     next <- sys
     for (0,1,Excl (value n)) $ \_ -> next >> return ()
 
 -- | Run a system as long as it returns 'true'
-execSystemWhile :: System (Data Bool) -> Program ()
+execSystemWhile :: MonadComp m => System m (Data Bool) -> m ()
 execSystemWhile (System sys) = do
     next <- sys
     while next (return ())

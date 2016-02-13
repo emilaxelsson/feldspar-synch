@@ -8,12 +8,7 @@ Synchronous streams for Feldspar
 
 # Installation
 
-To use this library, you need the development versions of several Feldspar-related packages:
+To use this library, you first need to install [raw-feldspar](https://github.com/emilaxelsson/raw-feldspar).
 
-  * <https://github.com/Feldspar/feldspar-language>
-  * <https://github.com/Feldspar/feldspar-compiler>
-  * <https://github.com/emwap/feldspar-compiler-shim>
-  * <https://github.com/emilaxelsson/imperative-edsl>
-  * <https://github.com/emilaxelsson/feldspar-io>
+  * [Installation instructions](https://github.com/emilaxelsson/raw-feldspar/blob/master/README.md)
 
-These can all be installed with the `cabal install` command (preferrably in a clean sandbox, to avoid dependency problems).

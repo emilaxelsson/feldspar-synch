@@ -16,8 +16,9 @@ module ALSA
 
 
 import Feldspar
-import Feldspar.IO
-import Feldspar.IO.Internal (Object (..))
+import Feldspar.Software
+import Language.Embedded.Imperative.CMD (Object (..))
+  -- TODO Export from Feldspar.Software.Internal
 
 
 
@@ -208,11 +209,11 @@ data StreamMode = Playback | Capture
   deriving (Show)
 
 data ALSA = ALSA
-    { newPCM   :: Program PCM
-    , initPCM  :: PCM -> StreamMode -> Data Word32 -> Data Word32 -> Data Word32 -> Program (Data Length)
-    , writePCM :: PCM -> Data [Int16] -> Program ()
-    , readPCM  :: PCM -> Data Length -> Program (Data [Int16])
-    , closePCM :: PCM -> Program ()
+    { newPCM   :: Software PCM
+    , initPCM  :: PCM -> StreamMode -> Data Word32 -> Data Word32 -> Data Word32 -> Software (Data Length)
+    , writePCM :: PCM -> Data Length -> Arr Int16 -> Software ()
+    , readPCM  :: PCM -> Data Length -> Software (Arr Int16)
+    , closePCM :: PCM -> Software ()
     }
 
 -- | Sample rate for sound device
@@ -225,12 +226,12 @@ formatBits :: Num a => a
 formatBits = 16
   -- Note: this constant is hard coded in the C code above
 
-newPCM_ :: Program PCM
-newPCM_ = fmap PCM $ newObject "snd_pcm_t"
+newPCM_ :: Software PCM
+newPCM_ = fmap PCM $ newObject "snd_pcm_t" True
 
 initPCM_
     :: PCM -> StreamMode -> Data Word32 -> Data Word32 -> Data Word32
-    -> Program (Data Length)
+    -> Software (Data Length)
 initPCM_ pcm mode nChan bufTime perTime = callFun "initialize_pcm"
     [ addr $ objArg $ unPCM pcm
     , objArg modeObj
@@ -243,16 +244,14 @@ initPCM_ pcm mode nChan bufTime perTime = callFun "initialize_pcm"
         Playback -> "SND_PCM_STREAM_PLAYBACK"
         Capture  -> "SND_PCM_STREAM_CAPTURE"
 
-writePCM_ :: PCM -> Data [Int16] -> Program ()
-writePCM_ pcm samps = do
-    samps' <- unsafeThawArr samps  -- Not safe in a concurrent setting
-    callProc "write_pcm"
-        [ objArg $ unPCM pcm
-        , arrArg samps'
-        , valArg (getLength samps)
-        ]
+writePCM_ :: PCM -> Data Length -> Arr Int16 -> Software ()
+writePCM_ pcm n samps = callProc "write_pcm"
+    [ objArg $ unPCM pcm
+    , arrArg samps
+    , valArg n
+    ]
 
-readPCM_ :: PCM -> Data Length -> Program (Data [Int16])
+readPCM_ :: PCM -> Data Length -> Software (Arr Int16)
 readPCM_ pcm len = do
     samps <- newArr len
     callProc "read_pcm"
@@ -260,12 +259,12 @@ readPCM_ pcm len = do
         , arrArg samps
         , valArg len
         ]
-    freezeArr samps len
+    return samps
 
-closePCM_ :: PCM -> Program ()
+closePCM_ :: PCM -> Software ()
 closePCM_ pcm = callProc "snd_pcm_close" [objArg $ unPCM pcm]
 
-importALSA :: Program ALSA
+importALSA :: Software ALSA
 importALSA = do
     addInclude "<alsa/asoundlib.h>"
     addInclude "<alloca.h>"
@@ -287,11 +286,11 @@ importALSA = do
 
 -- | Convert a floating point value in the range [-1,1] to a 16-bit integer in
 --- the range [minBound+1, maxBound]
-quantize :: forall a . (Numeric a, Feldspar.RealFloat a) => Data a -> Data Int16
+quantize :: forall a . (RealFrac a, SmallType a) => Data a -> Data Int16
 quantize a = Feldspar.round (a * fromIntegral (maxBound :: Int16) :: Data a)
 
 -- | Convert a floating point value in the range [-1,1] to a 16-bit integer in
 --- the range [minBound+1, maxBound]
-dequantize :: forall a . (Numeric a, Fraction a) => Data Int16 -> Data a
+dequantize :: (Fractional a, SmallType a) => Data Int16 -> Data a
 dequantize a = i2n a / fromIntegral (maxBound :: Int16)
 

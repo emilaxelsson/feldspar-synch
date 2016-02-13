@@ -11,15 +11,16 @@ import Control.Category (Category)
 import qualified Control.Category as Category
 
 import Feldspar
-import Feldspar.IO
+import Feldspar.Vector
+import Feldspar.Software
 import Feldspar.Synch.System
 
 
 
 -- | Synchronous stream transformer
-newtype Synch a b = Synch (Program (Kleisli Program a b))
+newtype Synch m a b = Synch (m (Kleisli m a b))
 
-instance Category Synch
+instance Monad m => Category (Synch m)
   where
     id = Synch $ return Category.id
 
@@ -28,7 +29,7 @@ instance Category Synch
         f2 <- init2
         return $ f2 Category.. f1
 
-instance Arrow Synch
+instance Monad m => Arrow (Synch m)
   where
     arr = Synch . return . arr
     first (Synch init) = Synch $ do
@@ -41,16 +42,16 @@ instance Singleton () where single = ()
 instance (Singleton a, Singleton b) => Singleton (a,b) where single = (single,single)
 
 -- | Run a synchronous stream transformer
-runSynch :: Singleton a => Synch a b -> System b
+runSynch :: (Singleton a, Monad m) => Synch m a b -> System m b
 runSynch (Synch init) = System $ do
     f <- init
     return $ runKleisli f single
 
 -- | Run a synchronous stream transformer with stdin/stdout as input/output
 interactSynch
-    :: (Type a, Formattable a, Type b, Formattable b)
-    => Synch (Data a) (Data b)
-    -> Program ()
+    :: (SmallType a, Formattable a, SmallType b, Formattable b)
+    => Synch Software (Data a) (Data b)
+    -> Software ()
 interactSynch (Synch init) = do
     f <- init
     while (return true) $ do
@@ -58,14 +59,14 @@ interactSynch (Synch init) = do
         fput stdout "" b ""
 
 -- | Add an initialization action to a synchronous stream transformer
-initSynch :: Program a -> (a -> Synch b c) -> Synch b c
+initSynch :: Monad m => m a -> (a -> Synch m b c) -> Synch m b c
 initSynch p k = Synch $ do
     Synch init <- fmap k p
     init
 
 -- | An identity stream transformer that runs the given action in every
 -- iteration
-actSynch :: Program () -> Synch a a
+actSynch :: Monad m => m () -> Synch m a a
 actSynch p = Synch $ stepper $ \a -> p >> return a
 
 -- | Helper function for creating stream transformers from monadic code.
@@ -75,32 +76,32 @@ actSynch p = Synch $ stepper $ \a -> p >> return a
 -- >    ... -- initialization code
 -- >    stepper $ \a -> do
 -- >        ... -- code to run each iteration
-stepper :: (a -> Program b) -> Program (Kleisli Program a b)
+stepper :: Monad m => (a -> m b) -> m (Kleisli m a b)
 stepper = return . Kleisli
 
 -- | Lift a 'Program' function to a stream transformer
-arrProg :: (a -> Program b) -> Synch a b
+arrProg :: Monad m => (a -> m b) -> Synch m a b
 arrProg = Synch . stepper
 
 -- | Lift a source 'Program' to a stream transformer with '()' inputs
-arrSource :: Program a -> Synch () a
+arrSource :: Monad m => m a -> Synch m () a
 arrSource = arrProg . const
 
 -- | Constant stream transformer with '()' inputs
-constA :: a -> Synch () a
+constA :: Monad m => a -> Synch m () a
 constA = arrSource . return
 
 -- | Identity stream transformer that ensures that the stream elements are
 -- represented \"by value\"; i.e. they can be shared without recomputation.
-store :: Type a => Synch (Data a) (Data a)
-store = arrProg shareVal
+storeS :: (SmallType a, MonadComp m) => Synch m (Data a) (Data a)
+storeS = arrProg store
 
 -- | Create a feedback loop. If no initial value is given, the fed-back stream
 -- (of type @`Data` b@) must not be used in the first cycle.
-feedback :: Type c
+feedback :: (Type c, MonadComp m)
     => Maybe (Data c)  -- ^ Initial value
-    -> Synch (a, Data c) (b, Data c)
-    -> Synch a b
+    -> Synch m (a, Data c) (b, Data c)
+    -> Synch m a b
 feedback binit (Synch init) = Synch $ do
     f <- init
     r <- case binit of
@@ -113,18 +114,18 @@ feedback binit (Synch init) = Synch $ do
       return b
 
 -- | Delay a stream by one cycle
-delay :: Type a
+delay :: (Type a, MonadComp m)
     => Data a  -- ^ Initial value
-    -> Synch (Data a) (Data a)
+    -> Synch m (Data a) (Data a)
 delay init = feedback (Just init) $ arr $ \(a,aPrev) -> (aPrev,a)
 
 -- | Resettable counter that counts upwards from 0
-count :: Numeric a => Synch (Data Bool) (Data a)
+count :: (Num a, SmallType a, MonadComp m) => Synch m (Data Bool) (Data a)
 count = feedback (Just 0) $ arr $ \(res,count) -> (count, res ? 0 $ count+1)
 
 -- | Settable counter that counts down to, and stops at, 0
-countDown :: (Numeric a, Ord a) => Synch (Data a) (Data a)
-countDown = store >>> feedback (Just 0) (arr step)
+countDown :: (Num a, SmallType a, MonadComp m) => Synch m (Data a) (Data a)
+countDown = storeS >>> feedback (Just 0) (arr step)
     -- `store` needed to get value sharing in `step`
   where
     step (set,count) =
@@ -135,51 +136,51 @@ countDown = store >>> feedback (Just 0) (arr step)
 
 -- | Whenever the input stream is true, it will stay true for the specified
 -- number of cycles
-hold
-    :: Data Length  -- ^ Number of cycles to hold
-    -> Synch (Data Bool) (Data Bool)
+hold :: MonadComp m
+    => Data Length  -- ^ Number of cycles to hold
+    -> Synch m (Data Bool) (Data Bool)
 hold n = arr (\a -> a ? n $ 0) >>> countDown >>> arr (>0)
 
 -- | Create a stream of values that cycle through the given range, separated by
 -- the given step length. It is assumed that @0 < stepLen < hi-lo@.
-cycleStep :: (Numeric a, Ord a)
+cycleStep :: (Num a, SmallType a, MonadComp m)
     => Data a                   -- ^ From
     -> Data a                   -- ^ To
-    -> Synch (Data a) (Data a)  -- ^ Step length -> value
+    -> Synch m (Data a) (Data a)  -- ^ Step length -> value
 cycleStep lo hi = feedback (Just lo) $ arr $ \(stepLen,a) ->
     let a' = a+stepLen
     in  (a, (a'>hi) ? (a' - (hi-lo)) $ a')
 
 -- | A latch circuit. If no initial value is given, the lock condition must be
 -- false in the first cycle.
-latch :: Type a
+latch :: (SmallType a, MonadComp m)
     => Maybe (Data a)  -- ^ Initial value
-    -> Synch (Data Bool, Data a) (Data a)
+    -> Synch m (Data Bool, Data a) (Data a)
          -- ^ (Lock condition, inp) -> outp
 latch def = feedback def $ proc arg@((lock,a),aPrev) -> do
-    b <- store <<< arr (\((lock,a),aPrev) -> lock ? aPrev $ a) -< arg
+    b <- storeS <<< arr (\((lock,a),aPrev) -> lock ? aPrev $ a) -< arg
     returnA -< (b,b)
 
 -- | The output stream will hold \"interesting\" input values for the specified
 -- number of cycles. The given predicate decides which values are interesting.
-holdPred :: Eq a
+holdPred :: (SmallType a, MonadComp m)
     => (Data a -> Data Bool)  -- ^ Predicate for interesting values
     -> Data Length            -- ^ Number of cycles to hold
-    -> Synch (Data a) (Data a)
-holdPred interesting n = store >>> proc as -> do
-    is   <- store <<< arr interesting -< as
+    -> Synch m (Data a) (Data a)
+holdPred interesting n = storeS >>> proc as -> do
+    is   <- storeS <<< arr interesting -< as
     hs   <- hold n -< is
     lock <- arr (\(i,iHold) -> not i && iHold) -< (is,hs)
     latch Nothing -< (lock,as)
 
 -- | A version of 'holdPred' that generates more compact code (but probably not
 -- better code)
-holdPred' :: Eq a
+holdPred' :: (SmallType a, MonadComp m)
     => (Data a -> Data Bool)  -- ^ Predicate for interesting values
     -> Data Length            -- ^ Number of cycles to hold
-    -> Synch (Data a) (Data a)
-holdPred' interesting n = store >>> Synch ( do
-    cr   <- initRef 0
+    -> Synch m (Data a) (Data a)
+holdPred' interesting n = storeS >>> Synch ( do
+    cr   <- initRef (0 :: Data Word32)
     oldr <- newRef
     stepper $ \a -> do
       iff (interesting a)
@@ -192,25 +193,26 @@ holdPred' interesting n = store >>> Synch ( do
     )
 
 -- | Run a stream function in chunks
-chunk :: (Type a, Type b)
+chunk :: (SmallType a, Type b, MonadComp m)
     => Data Length                -- ^ Chunk size
-    -> Synch (Data a) (Data b)    -- ^ Computation to speed up
-    -> Synch (Data a) (Data [b])  -- ^ Slow input -> slow output
-chunk n (Synch init) = store >>> Synch (do
+    -> Synch m (Data a) (Data b)  -- ^ Computation to speed up
+    -> Synch m (Data a) (Arr b)   -- ^ Slow input -> slow output
+chunk n (Synch init) = storeS >>> Synch (do
     f   <- init
     arr <- newArr n
     stepper $ \a -> do
       for (0,1,Excl n) $ \i -> do
         b <- runKleisli f a
         setArr i b arr
-      freezeArr arr n
+      return arr
     )
   -- Note: It's important that the argument is initialized outside of `stepper`.
   --       Otherwise it would be re-initialized at every chunk.
 
 -- | Identity stream transformer that traces to stdout
-tracer :: (Type a, Formattable a) => String -> Synch (Data a) (Data a)
-tracer prefix = store >>> arrProg (\a -> do
+tracer :: (SmallType a, Formattable a) =>
+    String -> Synch Software (Data a) (Data a)
+tracer prefix = storeS >>> arrProg (\a -> do
     fput stdout prefix a "\n"
     return a)
 
