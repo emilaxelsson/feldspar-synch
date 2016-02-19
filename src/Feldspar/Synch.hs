@@ -66,8 +66,8 @@ initSynch p k = Synch $ do
 
 -- | An identity stream transformer that runs the given action in every
 -- iteration
-actSynch :: Monad m => m () -> Synch m a a
-actSynch p = Synch $ stepper $ \a -> p >> return a
+actSynch :: Monad m => (a -> m ()) -> Synch m a a
+actSynch p = Synch $ stepper $ \a -> p a >> return a
 
 -- | Helper function for creating stream transformers from monadic code.
 -- Typically used as
