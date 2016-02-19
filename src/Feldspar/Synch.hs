@@ -194,9 +194,9 @@ holdPred' interesting n = storeS >>> Synch ( do
 
 -- | Run a stream function in chunks
 chunk :: (Type a, Type b, MonadComp m)
-    => Data Length                -- ^ Chunk size
-    -> Synch m (Data a) (Data b)  -- ^ Computation to speed up
-    -> Synch m (Data a) (Arr b)   -- ^ Slow input -> slow output
+    => Data Length                           -- ^ Chunk size
+    -> Synch m (Data a) (Data b)             -- ^ Computation to speed up
+    -> Synch m (Data a) (Manifest (Data b))  -- ^ Slow input -> slow output
 chunk n (Synch init) = storeS >>> Synch (do
     f   <- init
     arr <- newArr n
@@ -204,7 +204,8 @@ chunk n (Synch init) = storeS >>> Synch (do
       for (0,1,Excl n) $ \i -> do
         b <- runKleisli f a
         setArr i b arr
-      return arr
+      iarr <- unsafeFreezeArr arr
+      return $ Manifest n iarr
     )
   -- Note: It's important that the argument is initialized outside of `stepper`.
   --       Otherwise it would be re-initialized at every chunk.

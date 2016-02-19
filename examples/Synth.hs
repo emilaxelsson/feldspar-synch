@@ -98,7 +98,7 @@ synth alsa pcm n
     >>> arr interpretChar
     >>> arr interpretKey
     >>> chunk n (genSine >>> arr distort >>> arr quantize)
-    >>> arrProg (writePCM alsa pcm n)
+    >>> arrProg (writePCM alsa pcm)
   where
     distort x = sign * x * x
       where sign = x>=0 ? 1 $ (-1)  -- because `signum` doesn't work
