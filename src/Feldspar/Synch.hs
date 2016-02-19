@@ -93,7 +93,7 @@ constA = arrSource . return
 
 -- | Identity stream transformer that ensures that the stream elements are
 -- represented \"by value\"; i.e. they can be shared without recomputation.
-storeS :: (SmallType a, MonadComp m) => Synch m (Data a) (Data a)
+storeS :: (Type a, MonadComp m) => Synch m (Data a) (Data a)
 storeS = arrProg store
 
 -- | Create a feedback loop. If no initial value is given, the fed-back stream
@@ -153,7 +153,7 @@ cycleStep lo hi = feedback (Just lo) $ arr $ \(stepLen,a) ->
 
 -- | A latch circuit. If no initial value is given, the lock condition must be
 -- false in the first cycle.
-latch :: (SmallType a, MonadComp m)
+latch :: (Type a, MonadComp m)
     => Maybe (Data a)  -- ^ Initial value
     -> Synch m (Data Bool, Data a) (Data a)
          -- ^ (Lock condition, inp) -> outp
@@ -163,7 +163,7 @@ latch def = feedback def $ proc arg@((lock,a),aPrev) -> do
 
 -- | The output stream will hold \"interesting\" input values for the specified
 -- number of cycles. The given predicate decides which values are interesting.
-holdPred :: (SmallType a, MonadComp m)
+holdPred :: (Type a, MonadComp m)
     => (Data a -> Data Bool)  -- ^ Predicate for interesting values
     -> Data Length            -- ^ Number of cycles to hold
     -> Synch m (Data a) (Data a)
@@ -175,7 +175,7 @@ holdPred interesting n = storeS >>> proc as -> do
 
 -- | A version of 'holdPred' that generates more compact code (but probably not
 -- better code)
-holdPred' :: (SmallType a, MonadComp m)
+holdPred' :: (Type a, MonadComp m)
     => (Data a -> Data Bool)  -- ^ Predicate for interesting values
     -> Data Length            -- ^ Number of cycles to hold
     -> Synch m (Data a) (Data a)
@@ -193,7 +193,7 @@ holdPred' interesting n = storeS >>> Synch ( do
     )
 
 -- | Run a stream function in chunks
-chunk :: (SmallType a, Type b, MonadComp m)
+chunk :: (Type a, Type b, MonadComp m)
     => Data Length                -- ^ Chunk size
     -> Synch m (Data a) (Data b)  -- ^ Computation to speed up
     -> Synch m (Data a) (Arr b)   -- ^ Slow input -> slow output
