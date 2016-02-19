@@ -11,7 +11,7 @@ import Feldspar.Synch.System
 --------------------------------------------------------------------------------
 
 -- identity: pure id <*> v = v
-appLaw1 :: System a -> [System a]
+appLaw1 :: Monad m => System m a -> [System m a]
 appLaw1 v@(System v') =
   [ pure id <*> v
   , System (return (return id)) <*> (System v')
@@ -30,7 +30,8 @@ appLaw1 v@(System v') =
   ]
 
 -- composition: pure (.) <*> u <*> v <*> w = u <*> (v <*> w)
-appLaw2 :: System (b -> c) -> System (a -> b) -> System a -> [System c]
+appLaw2 :: Monad m =>
+    System m (b -> c) -> System m (a -> b) -> System m a -> [System m c]
 appLaw2 u@(System u') v@(System v') w@(System w') =
   [ pure (.) <*> u <*> v <*> w
   , System (return (return (.))) <*> System u' <*> v <*> w
@@ -93,7 +94,7 @@ appLaw2 u@(System u') v@(System v') w@(System w') =
   ]
 
 -- homomorphism: pure f <*> pure x = pure (f x)
-appLaw3 :: (a -> b) -> a -> [System b]
+appLaw3 :: Monad m => (a -> b) -> a -> [System m b]
 appLaw3 f a =
   [ pure f <*> pure a
   , System (return $ return f) <*> System (return $ return a)
@@ -108,7 +109,7 @@ appLaw3 f a =
   ]
 
 -- interchange: u <*> pure y = pure ($ y) <*> u
-appLaw4 :: System (a -> b) -> a -> [System b]
+appLaw4 :: Monad m => System m (a -> b) -> a -> [System m b]
 appLaw4 u@(System u') a =
   [ u <*> pure a
   , System u' <*> System (return $ return a)
