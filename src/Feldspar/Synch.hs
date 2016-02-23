@@ -93,8 +93,8 @@ constA = arrSource . return
 
 -- | Identity stream transformer that ensures that the stream elements are
 -- represented \"by value\"; i.e. they can be shared without recomputation.
-storeS :: (Type a, MonadComp m) => Synch m (Data a) (Data a)
-storeS = arrProg store
+forceS :: (Forcible a, MonadComp m) => Synch m a a
+forceS = arrProg force
 
 -- | Create a feedback loop. If no initial value is given, the fed-back stream
 -- (of type @`Data` b@) must not be used in the first cycle.
@@ -125,7 +125,7 @@ count = feedback (Just 0) $ arr $ \(res,count) -> (count, res ? 0 $ count+1)
 
 -- | Settable counter that counts down to, and stops at, 0
 countDown :: (Num a, SmallType a, MonadComp m) => Synch m (Data a) (Data a)
-countDown = storeS >>> feedback (Just 0) (arr step)
+countDown = forceS >>> feedback (Just 0) (arr step)
     -- `store` needed to get value sharing in `step`
   where
     step (set,count) =
@@ -158,7 +158,7 @@ latch :: (Type a, MonadComp m)
     -> Synch m (Data Bool, Data a) (Data a)
          -- ^ (Lock condition, inp) -> outp
 latch def = feedback def $ proc arg@((lock,a),aPrev) -> do
-    b <- storeS <<< arr (\((lock,a),aPrev) -> lock ? aPrev $ a) -< arg
+    b <- forceS <<< arr (\((lock,a),aPrev) -> lock ? aPrev $ a) -< arg
     returnA -< (b,b)
 
 -- | The output stream will hold \"interesting\" input values for the specified
@@ -167,8 +167,8 @@ holdPred :: (Type a, MonadComp m)
     => (Data a -> Data Bool)  -- ^ Predicate for interesting values
     -> Data Length            -- ^ Number of cycles to hold
     -> Synch m (Data a) (Data a)
-holdPred interesting n = storeS >>> proc as -> do
-    is   <- storeS <<< arr interesting -< as
+holdPred interesting n = forceS >>> proc as -> do
+    is   <- forceS <<< arr interesting -< as
     hs   <- hold n -< is
     lock <- arr (\(i,iHold) -> not i && iHold) -< (is,hs)
     latch Nothing -< (lock,as)
@@ -179,7 +179,7 @@ holdPred' :: (Type a, MonadComp m)
     => (Data a -> Data Bool)  -- ^ Predicate for interesting values
     -> Data Length            -- ^ Number of cycles to hold
     -> Synch m (Data a) (Data a)
-holdPred' interesting n = storeS >>> Synch ( do
+holdPred' interesting n = forceS >>> Synch ( do
     cr   <- initRef (0 :: Data Word32)
     oldr <- newRef
     stepper $ \a -> do
@@ -193,11 +193,11 @@ holdPred' interesting n = storeS >>> Synch ( do
     )
 
 -- | Run a stream function in chunks
-chunk :: (Type a, Type b, MonadComp m)
+chunk :: (Forcible a, Type b, MonadComp m)
     => Data Length                           -- ^ Chunk size
-    -> Synch m (Data a) (Data b)             -- ^ Computation to speed up
-    -> Synch m (Data a) (Manifest (Data b))  -- ^ Slow input -> slow output
-chunk n (Synch init) = storeS >>> Synch (do
+    -> Synch m a (Data b)             -- ^ Computation to speed up
+    -> Synch m a (Manifest (Data b))  -- ^ Slow input -> slow output
+chunk n (Synch init) = forceS >>> Synch (do
     f   <- init
     arr <- newArr n
     stepper $ \a -> do
@@ -213,7 +213,7 @@ chunk n (Synch init) = storeS >>> Synch (do
 -- | Identity stream transformer that traces to stdout
 tracer :: (SmallType a, Formattable a) =>
     String -> Synch Software (Data a) (Data a)
-tracer prefix = storeS >>> arrProg (\a -> do
+tracer prefix = forceS >>> arrProg (\a -> do
     fput stdout prefix a "\n"
     return a)
 
