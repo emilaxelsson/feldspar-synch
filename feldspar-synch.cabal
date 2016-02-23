@@ -58,6 +58,8 @@ test-suite Synth
   default-language: Haskell2010
 
   default-extensions:
+    FlexibleContexts
+    GADTs
     RecordWildCards
     ScopedTypeVariables
 
@@ -65,5 +67,5 @@ test-suite Synth
     base,
     raw-feldspar,
     feldspar-synch,
-    language-c-quote
+    imperative-edsl
 
