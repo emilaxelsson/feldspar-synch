@@ -98,9 +98,9 @@ forceS = arrProg force
 
 -- | Create a feedback loop. If no initial value is given, the fed-back stream
 -- (of type @`Data` b@) must not be used in the first cycle.
-feedback :: (Type c, MonadComp m)
-    => Maybe (Data c)  -- ^ Initial value
-    -> Synch m (a, Data c) (b, Data c)
+feedback :: (Syntax c, MonadComp m)
+    => Maybe c  -- ^ Initial value
+    -> Synch m (a,c) (b,c)
     -> Synch m a b
 feedback binit (Synch init) = Synch $ do
     f <- init
@@ -114,9 +114,9 @@ feedback binit (Synch init) = Synch $ do
       return b
 
 -- | Delay a stream by one cycle
-delay :: (Type a, MonadComp m)
-    => Data a  -- ^ Initial value
-    -> Synch m (Data a) (Data a)
+delay :: (Syntax a, MonadComp m)
+    => a  -- ^ Initial value
+    -> Synch m a a
 delay init = feedback (Just init) $ arr $ \(a,aPrev) -> (aPrev,a)
 
 -- | Resettable counter that counts upwards from 0
@@ -144,18 +144,24 @@ hold n = arr (\a -> a ? n $ 0) >>> countDown >>> arr (>0)
 -- | Create a stream of values that cycle through the given range, separated by
 -- the given step length. It is assumed that @0 < stepLen < hi-lo@.
 cycleStep :: (Num a, SmallType a, MonadComp m)
-    => Data a                   -- ^ From
-    -> Data a                   -- ^ To
+    => Data a                     -- ^ From
+    -> Data a                     -- ^ To
     -> Synch m (Data a) (Data a)  -- ^ Step length -> value
 cycleStep lo hi = feedback (Just lo) $ arr $ \(stepLen,a) ->
     let a' = a+stepLen
     in  (a, (a'>hi) ? (a' - (hi-lo)) $ a')
 
--- | A latch circuit. If no initial value is given, the lock condition must be
--- false in the first cycle.
-latch :: (Type a, MonadComp m)
-    => Maybe (Data a)  -- ^ Initial value
-    -> Synch m (Data Bool, Data a) (Data a)
+-- | A latch circuit. Whenever the lock condition is true, the output from the
+-- previous cycle is retained as the output; when the condition is false, the
+-- current input is passed as the current output.
+--
+-- If no initial value is given, the lock condition must be false in the first
+-- cycle.
+latch :: (Syntax a, Forcible a, MonadComp m)
+    => Maybe a
+        -- ^ Initial value. This will be the initial output if the lock
+        -- condition is true in the first cycle.
+    -> Synch m (Data Bool, a) a
          -- ^ (Lock condition, inp) -> outp
 latch def = feedback def $ proc arg@((lock,a),aPrev) -> do
     b <- forceS <<< arr (\((lock,a),aPrev) -> lock ? aPrev $ a) -< arg
@@ -163,10 +169,10 @@ latch def = feedback def $ proc arg@((lock,a),aPrev) -> do
 
 -- | The output stream will hold \"interesting\" input values for the specified
 -- number of cycles. The given predicate decides which values are interesting.
-holdPred :: (Type a, MonadComp m)
-    => (Data a -> Data Bool)  -- ^ Predicate for interesting values
-    -> Data Length            -- ^ Number of cycles to hold
-    -> Synch m (Data a) (Data a)
+holdPred :: (Syntax a, Forcible a, MonadComp m)
+    => (a -> Data Bool)  -- ^ Predicate for interesting values
+    -> Data Length       -- ^ Number of cycles to hold
+    -> Synch m a a
 holdPred interesting n = forceS >>> proc as -> do
     is   <- forceS <<< arr interesting -< as
     hs   <- hold n -< is
@@ -175,10 +181,10 @@ holdPred interesting n = forceS >>> proc as -> do
 
 -- | A version of 'holdPred' that generates more compact code (but probably not
 -- better code)
-holdPred' :: (Type a, MonadComp m)
-    => (Data a -> Data Bool)  -- ^ Predicate for interesting values
-    -> Data Length            -- ^ Number of cycles to hold
-    -> Synch m (Data a) (Data a)
+holdPred' :: (Syntax a, Forcible a, MonadComp m)
+    => (a -> Data Bool)  -- ^ Predicate for interesting values
+    -> Data Length       -- ^ Number of cycles to hold
+    -> Synch m a a
 holdPred' interesting n = forceS >>> Synch ( do
     cr   <- initRef (0 :: Data Word32)
     oldr <- newRef
@@ -193,10 +199,10 @@ holdPred' interesting n = forceS >>> Synch ( do
     )
 
 -- | Run a stream function in chunks
-chunk :: (Forcible a, Type b, MonadComp m)
-    => Data Length                           -- ^ Chunk size
-    -> Synch m a (Data b)             -- ^ Computation to speed up
-    -> Synch m a (Manifest (Data b))  -- ^ Slow input -> slow output
+chunk :: (Forcible a, Syntax b, MonadComp m)
+    => Data Length             -- ^ Chunk size
+    -> Synch m a b             -- ^ Computation to speed up
+    -> Synch m a (Manifest b)  -- ^ Slow input -> slow output
 chunk n (Synch init) = forceS >>> Synch (do
     f   <- init
     arr <- newArr n
