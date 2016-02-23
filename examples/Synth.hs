@@ -66,11 +66,6 @@ interpretChar = switch 0 table
     cs    = P.map (P.fromIntegral . Char.ord) claviature
     table = P.zip cs (P.map value [3..])  -- C has key 3
 
-prog :: Software ()
-prog = do
-    i <- fget stdin
-    printf "%d\n" $ interpretChar i
-
 -- | Map a key to the corresponding frequency. Frequency 0 maps to key 0.
 interpretKey :: Key -> Frequency
 interpretKey k = i2n (b2i (k>0) :: Data Word8) * 440 * interval k
