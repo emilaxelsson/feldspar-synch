@@ -36,6 +36,21 @@ instance Monad m => Arrow (Synch m)
         f <- init
         return $ first f
 
+type Event a = (Data Bool, a)
+
+-- | Create an event whenever a condition is true. Note that the value may get
+-- evaluated even if the condition is false.
+eventWhen :: Data Bool -> a -> Event a
+eventWhen = (,)
+
+-- | Create an always-occurring event
+event :: a -> Event a
+event a = (true,a)
+
+-- | No event
+noEvent :: Syntax a => Event a
+noEvent = (false,example)
+
 -- | Singleton types
 class Singleton s where single :: s
 instance Singleton () where single = ()
@@ -91,6 +106,18 @@ arrSource = arrProg . const
 constA :: Monad m => a -> Synch m () a
 constA = arrSource . return
 
+-- | Lift a stream transformer to work on events. The network will only run when
+-- an input event occurs.
+liftEvent :: (Syntax b, MonadComp m) =>
+    Synch m a b -> Synch m (Event a) (Event b)
+liftEvent (Synch init) = Synch $ do
+    f <- init
+    r <- newRef
+    stepper $ \(e,a) -> do
+        iff e (runKleisli f a >>= setRef r) (return ())
+        b <- unsafeFreezeRef r
+        return (e,b)
+
 -- | Identity stream transformer that ensures that the stream elements are
 -- represented \"by value\"; i.e. they can be shared without recomputation.
 forceS :: (Forcible a, MonadComp m) => Synch m a a
@@ -119,14 +146,18 @@ delay :: (Syntax a, MonadComp m)
     -> Synch m a a
 delay init = feedback (Just init) $ arr $ \(a,aPrev) -> (aPrev,a)
 
--- | Resettable counter that counts upwards from 0
-count :: (Num a, SmallType a, MonadComp m) => Synch m (Data Bool) (Data a)
-count = feedback (Just 0) $ arr $ \(res,count) -> (count, res ? 0 $ count+1)
+-- | Settable up-counter. An input event will set the counter to the received
+-- value. Whenever there is no input event, the counter counts upwards from the
+-- previous value. If there is no set event in the first cycle, the counter
+-- starts from 0.
+count :: (Num a, SmallType a, MonadComp m) => Synch m (Event (Data a)) (Data a)
+count = feedback (Just 0) $ arr $ \((res,new),old) ->
+    share (res ? new $ old+1) $ \next -> (next,next)
 
 -- | Settable counter that counts down to, and stops at, 0
 countDown :: (Num a, SmallType a, MonadComp m) => Synch m (Data a) (Data a)
 countDown = forceS >>> feedback (Just 0) (arr step)
-    -- `store` needed to get value sharing in `step`
+    -- `forceS` needed to get value sharing in `step`
   where
     step (set,count) =
         ( (set>0) ? set $ count
@@ -151,51 +182,48 @@ cycleStep lo hi = feedback (Just lo) $ arr $ \(stepLen,a) ->
     let a' = a+stepLen
     in  (a, (a'>hi) ? (a' - (hi-lo)) $ a')
 
--- | A latch circuit. Whenever the lock condition is true, the output from the
--- previous cycle is retained as the output; when the condition is false, the
--- current input is passed as the current output.
+-- | A latch circuit. Whenever there's an input event, the received value is
+-- passed to the output; otherwise the previous output value is retained.
 --
--- If no initial value is given, the lock condition must be false in the first
--- cycle.
+-- If no initial value is given, there must be en event in the first cycle.
 latch :: (Syntax a, Forcible a, MonadComp m)
     => Maybe a
-        -- ^ Initial value. This will be the initial output if the lock
-        -- condition is true in the first cycle.
-    -> Synch m (Data Bool, a) a
-         -- ^ (Lock condition, inp) -> outp
+        -- ^ Initial value. This will be the initial output if there is no input
+        -- event in the first cycle.
+    -> Synch m (Event a) a
 latch def = feedback def $ proc arg@((lock,a),aPrev) -> do
-    b <- forceS <<< arr (\((lock,a),aPrev) -> lock ? aPrev $ a) -< arg
+    b <- forceS <<< arr (\((pass,a),aPrev) -> pass ? a $ aPrev) -< arg
     returnA -< (b,b)
 
--- | The output stream will hold \"interesting\" input values for the specified
--- number of cycles. The given predicate decides which values are interesting.
-holdPred :: (Syntax a, Forcible a, MonadComp m)
-    => (a -> Data Bool)  -- ^ Predicate for interesting values
-    -> Data Length       -- ^ Number of cycles to hold
-    -> Synch m a a
-holdPred interesting n = forceS >>> proc as -> do
-    is   <- forceS <<< arr interesting -< as
-    hs   <- hold n -< is
-    lock <- arr (\(i,iHold) -> not i && iHold) -< (is,hs)
-    latch Nothing -< (lock,as)
+-- | The output stream will hold events for the specified number of cycles. New
+-- events will replace old events immediately, even if the hold time for the old
+-- event has not yet passed.
+holdEvent :: (Syntax a, Forcible a, MonadComp m)
+    => Data Length  -- ^ Number of cycles to hold
+    -> Synch m (Event a) (Event a)
+holdEvent n = forceS >>> proc (ev,as) -> do
+    hs   <- hold n -< ev
+    pass <- arr (\(e,eHold) -> e || not eHold) -< (ev,hs)
+    as' <- latch Nothing -< (pass,as)
+    returnA -< (hs,as')
 
--- | A version of 'holdPred' that generates more compact code (but probably not
+-- | A version of 'holdEvent' that generates more compact code (but probably not
 -- better code)
-holdPred' :: (Syntax a, Forcible a, MonadComp m)
-    => (a -> Data Bool)  -- ^ Predicate for interesting values
-    -> Data Length       -- ^ Number of cycles to hold
-    -> Synch m a a
-holdPred' interesting n = forceS >>> Synch ( do
+holdEvent' :: (Syntax a, Forcible a, MonadComp m)
+    => Data Length  -- ^ Number of cycles to hold
+    -> Synch m (Event a) (Event a)
+holdEvent' n = forceS >>> Synch ( do
     cr   <- initRef (0 :: Data Word32)
     oldr <- newRef
-    stepper $ \a -> do
-      iff (interesting a)
+    stepper $ \(ev,a) -> do
+      iff ev
         (setRef cr n >> setRef oldr a)
-        (modifyRef cr (\c -> c==0 ? c $ c-1))
+        (modifyRef cr (\c -> c==0 ? 0 $ c-1))
       c <- getRef cr
-      ifE (c == 0)
+      a' <- ifE (c == 0)
         (return a)
-        (getRef oldr)
+        (unsafeFreezeRef oldr)
+      return (c/=0, a')
     )
 
 -- | Run a stream function in chunks

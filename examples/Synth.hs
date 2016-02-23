@@ -39,12 +39,13 @@ char getch()
 }
 |]
 
-getch :: Software (Data Word8)
+getch :: Software (Event (Data Word8))
 getch = do
     addInclude "<stdio.h>"
     addInclude "<sys/ioctl.h>"
     addDefinition getch_def
-    callFun "getch" []
+    c <- callFun "getch" []
+    return $ eventWhen (c/=0) c
 
 
 
@@ -68,9 +69,8 @@ interpretChar = switch 0 table
 
 -- | Map a key to the corresponding frequency. Frequency 0 maps to key 0.
 interpretKey :: Key -> Frequency
-interpretKey k = i2n (b2i (k>0) :: Data Word8) * 440 * interval k
+interpretKey k = 440 * interval k
   where
-    b2i b = b ? 1 $ 0 -- TODO
     interval k = 2 ** (i2n k/12)
 
 -- | Compute the step angle corresponding to the given wave frequency at the
@@ -82,6 +82,14 @@ stepAngle freq = 2*pi*freq/sampleRate
 genSine :: MonadComp m => Synch m Frequency (Data Double)
 genSine = arr stepAngle >>> cycleStep 0 (2*pi) >>> arr sin
 
+genSineQ :: MonadComp m => Synch m (Event Frequency) (Data Int16)
+genSineQ =
+    liftEvent (genSine >>> arr distort >>> arr quantize)
+        >>> arr (\(ev,a) -> ev ? a $ 0)
+  where
+    distort x = sign * x * x
+      where sign = x>=0 ? 1 $ (-1)  -- because `signum` doesn't work
+
 bufferLength = 25000  -- Sound device buffer length, 25ms
 periodLength = 3000   -- Chunk length (approximate main loop period), 3ms
 holdTime     = 100    -- 100 cycles = 300ms
@@ -89,14 +97,11 @@ holdTime     = 100    -- 100 cycles = 300ms
 synth :: ALSA -> PCM -> Data Length -> Synch Software () ()
 synth alsa pcm n
     =   arrSource getch
-    >>> holdPred (/=0) holdTime
-    >>> arr interpretChar
-    >>> arr interpretKey
-    >>> chunk n (genSine >>> arr distort >>> arr quantize)
+    >>> holdEvent holdTime
+    >>> arr (fmap interpretChar)
+    >>> arr (fmap interpretKey)
+    >>> chunk n genSineQ
     >>> arrProg (writePCM alsa pcm)
-  where
-    distort x = sign * x * x
-      where sign = x>=0 ? 1 $ (-1)  -- because `signum` doesn't work
 
 synthMain :: Software ()
 synthMain = do
