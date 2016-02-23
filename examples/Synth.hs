@@ -13,6 +13,7 @@ import Control.Arrow
 import qualified Data.Char as Char
 
 import Feldspar
+import Feldspar.Validated
 import Feldspar.Software
 
 import Feldspar.Synch.System
@@ -53,12 +54,19 @@ getch = do
 -- * Synthesizer
 --------------------------------------------------------------------------------
 
+bufferLength = 25000  -- Sound device buffer length, 25ms
+periodLength = 3000   -- Chunk length (approximate main loop period), 3ms
+holdTime     = 100    -- 100 cycles = 300ms
+
+claviature = "zsxdcvgbhnjm,"
+
+-- | Number of parallel channels
+nPoly = P.length claviature
+
 -- | 0 means A, 3 means C, etc.
 type Key = Data Word8
 
 type Frequency = Data Double
-
-claviature = "zsxdcvgbhnjm,"
 
 -- | Map a character to the corresponding key
 interpretChar :: Data Word8 -> Key
@@ -67,40 +75,65 @@ interpretChar = switch 0 table
     cs    = P.map (P.fromIntegral . Char.ord) claviature
     table = P.zip cs (P.map value [3..])  -- C has key 3
 
--- | Map a key to the corresponding frequency. Frequency 0 maps to key 0.
+-- | Map a key to the corresponding frequency
 interpretKey :: Key -> Frequency
 interpretKey k = 440 * interval k
   where
     interval k = 2 ** (i2n k/12)
 
+-- | Generate 'Frequency' events from 'Key' events. The number of 'Frequency'
+-- events for each 'Key' event is given by 'holdTime'.
+key :: MonadComp m => Synch m (Event Key) (Event Frequency)
+key = holdEvent holdTime >>> arr (fmap interpretKey)
+
+-- | Polyphonic version of 'key'. Each element in the output is tied to a
+-- specific frequency. Each input event generates events on the channel given by
+-- the input 'Key'.
+keyPoly :: MonadComp m => Synch m (Event Key) [Event Frequency]
+keyPoly = parSplit nPoly keyFilter (const key)
+  where
+    keyFilter i ke = ke >>= \k -> eventWhen (value (P.fromIntegral i + 3) == k) k
+
 -- | Compute the step angle corresponding to the given wave frequency at the
--- given sample rate
+-- specified sample rate
 stepAngle :: Frequency -> Data Double
 stepAngle freq = 2*pi*freq/sampleRate
 
--- | Generate a sine wave of the given frequency at the give sample rate
+-- | Generate a sine wave of the given frequency at the specified sample rate
 genSine :: MonadComp m => Synch m Frequency (Data Double)
-genSine = arr stepAngle >>> cycleStep 0 (2*pi) >>> arr sin
-
-genSineQ :: MonadComp m => Synch m (Event Frequency) (Data Int16)
-genSineQ =
-    liftEvent (genSine >>> arr distort >>> arr quantize)
-        >>> arr (\(ev,a) -> ev ? a $ 0)
+genSine = arr stepAngle >>> cycleStep 0 (2*pi) >>> arr sin >>> arr distort
   where
     distort x = sign * x * x
       where sign = x>=0 ? 1 $ (-1)  -- because `signum` doesn't work
 
-bufferLength = 25000  -- Sound device buffer length, 25ms
-periodLength = 3000   -- Chunk length (approximate main loop period), 3ms
-holdTime     = 100    -- 100 cycles = 300ms
+-- | Event-controlled sine wave. The wave only advances when there's an event,
+-- and the output is 0 when there is no event.
+genSineE :: MonadComp m => Synch m (Event Frequency) (Data Double)
+genSineE = liftEvent genSine >>> arr (\a -> fromValidated a 0)
 
+-- | Polyphonic version of 'genSineE'. It runs a number of 'genSineE' networks
+-- in parallel, and sums their output.
+genSinePolyE :: MonadComp m => Synch m [Event Frequency] (Data Double)
+genSinePolyE
+    =   parList nPoly (\_ -> genSineE >>> arr (*0.17))
+    >>> arr (P.foldr (+) 0)
+
+-- | Monophonic synth
 synth :: ALSA -> PCM -> Data Length -> Synch Software () ()
 synth alsa pcm n
     =   arrSource getch
-    >>> holdEvent holdTime
     >>> arr (fmap interpretChar)
-    >>> arr (fmap interpretKey)
-    >>> chunk n genSineQ
+    >>> key
+    >>> chunk n (genSineE >>> arr quantize)
+    >>> arrProg (writePCM alsa pcm)
+
+-- | Polyphonic synth
+synthPoly :: ALSA -> PCM -> Data Length -> Synch Software () ()
+synthPoly alsa pcm n
+    =   arrSource getch
+    >>> arr (fmap interpretChar)
+    >>> keyPoly
+    >>> chunk n (genSinePolyE >>> arr quantize)
     >>> arrProg (writePCM alsa pcm)
 
 synthMain :: Software ()
@@ -110,9 +143,20 @@ synthMain = do
     n   <- initPCM pcm Playback 1 bufferLength periodLength
     execSystem $ runSynch $ synth alsa pcm n
 
+synthPolyMain :: Software ()
+synthPolyMain = do
+    alsa@(ALSA {..}) <- importALSA
+    pcm <- newPCM
+    n   <- initPCM pcm Playback 1 bufferLength periodLength
+    execSystem $ runSynch $ synthPoly alsa pcm n
+
 runSynth = runCompiled'
     defaultExtCompilerOpts {externalFlagsPost = ["-lm","-lasound"]}
     synthMain
+
+runSynthPoly = runCompiled'
+    defaultExtCompilerOpts {externalFlagsPost = ["-lm","-lasound"]}
+    synthPolyMain
 
 main = icompile synthMain
 

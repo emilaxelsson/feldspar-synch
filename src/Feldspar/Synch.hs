@@ -4,7 +4,7 @@ module Feldspar.Synch where
 
 
 
-import Prelude ()
+import qualified Prelude
 
 import Control.Arrow
 import Control.Category (Category)
@@ -12,6 +12,7 @@ import qualified Control.Category as Category
 
 import Feldspar
 import Feldspar.Vector
+import Feldspar.Validated
 import Feldspar.Software
 import Feldspar.Synch.System
 
@@ -36,20 +37,10 @@ instance Monad m => Arrow (Synch m)
         f <- init
         return $ first f
 
-type Event a = (Data Bool, a)
+type Event = Validated
 
--- | Create an event whenever a condition is true. Note that the value may get
--- evaluated even if the condition is false.
 eventWhen :: Data Bool -> a -> Event a
-eventWhen = (,)
-
--- | Create an always-occurring event
-event :: a -> Event a
-event a = (true,a)
-
--- | No event
-noEvent :: Syntax a => Event a
-noEvent = (false,example)
+eventWhen = validWhen
 
 -- | Singleton types
 class Singleton s where single :: s
@@ -113,10 +104,10 @@ liftEvent :: (Syntax b, MonadComp m) =>
 liftEvent (Synch init) = Synch $ do
     f <- init
     r <- newRef
-    stepper $ \(e,a) -> do
-        iff e (runKleisli f a >>= setRef r) (return ())
+    stepper $ \(Validated valid a) -> do
+        iff valid (runKleisli f a >>= setRef r) (return ())
         b <- unsafeFreezeRef r
-        return (e,b)
+        return (Validated valid b)
 
 -- | Identity stream transformer that ensures that the stream elements are
 -- represented \"by value\"; i.e. they can be shared without recomputation.
@@ -151,8 +142,8 @@ delay init = feedback (Just init) $ arr $ \(a,aPrev) -> (aPrev,a)
 -- previous value. If there is no set event in the first cycle, the counter
 -- starts from 0.
 count :: (Num a, SmallType a, MonadComp m) => Synch m (Event (Data a)) (Data a)
-count = feedback (Just 0) $ arr $ \((res,new),old) ->
-    share (res ? new $ old+1) $ \next -> (next,next)
+count = feedback (Just 0) $ arr $ \(newEv,old) ->
+    share (fromValidated newEv (old+1)) $ \next -> (next,next)
 
 -- | Settable counter that counts down to, and stops at, 0
 countDown :: (Num a, SmallType a, MonadComp m) => Synch m (Data a) (Data a)
@@ -191,8 +182,8 @@ latch :: (Syntax a, Forcible a, MonadComp m)
         -- ^ Initial value. This will be the initial output if there is no input
         -- event in the first cycle.
     -> Synch m (Event a) a
-latch def = feedback def $ proc arg@((lock,a),aPrev) -> do
-    b <- forceS <<< arr (\((pass,a),aPrev) -> pass ? a $ aPrev) -< arg
+latch def = feedback def $ proc arg -> do
+    b <- forceS <<< arr (\(aEv,aPrev) -> fromValidated aEv aPrev) -< arg
     returnA -< (b,b)
 
 -- | The output stream will hold events for the specified number of cycles. New
@@ -201,11 +192,11 @@ latch def = feedback def $ proc arg@((lock,a),aPrev) -> do
 holdEvent :: (Syntax a, Forcible a, MonadComp m)
     => Data Length  -- ^ Number of cycles to hold
     -> Synch m (Event a) (Event a)
-holdEvent n = forceS >>> proc (ev,as) -> do
-    hs   <- hold n -< ev
-    pass <- arr (\(e,eHold) -> e || not eHold) -< (ev,hs)
-    as' <- latch Nothing -< (pass,as)
-    returnA -< (hs,as')
+holdEvent n = forceS >>> proc (Validated valid as) -> do
+    hs   <- hold n -< valid
+    pass <- arr (\(v,vHold) -> v || not vHold) -< (valid,hs)
+    as' <- latch Nothing -< Validated pass as
+    returnA -< Validated hs as'
 
 -- | A version of 'holdEvent' that generates more compact code (but probably not
 -- better code)
@@ -215,15 +206,15 @@ holdEvent' :: (Syntax a, Forcible a, MonadComp m)
 holdEvent' n = forceS >>> Synch ( do
     cr   <- initRef (0 :: Data Word32)
     oldr <- newRef
-    stepper $ \(ev,a) -> do
-      iff ev
+    stepper $ \(Validated valid a) -> do
+      iff valid
         (setRef cr n >> setRef oldr a)
         (modifyRef cr (\c -> c==0 ? 0 $ c-1))
       c <- getRef cr
       a' <- ifE (c == 0)
         (return a)
         (unsafeFreezeRef oldr)
-      return (c/=0, a')
+      return (validWhen (c/=0) a')
     )
 
 -- | Run a stream function in chunks
@@ -250,4 +241,26 @@ tracer :: (SmallType a, Formattable a) =>
 tracer prefix = forceS >>> arrProg (\a -> do
     fput stdout prefix a "\n"
     return a)
+
+-- | Run a number of copies of a network in parallel. The input is split to the
+-- sub-networks using the provided selector function.
+parSplit :: (Forcible a, MonadComp m)
+    => Int                   -- ^ Number of parallel networks
+    -> (Int -> a -> b)       -- ^ Input selector
+    -> (Int -> Synch m b c)  -- ^ Network to parallelize
+    -> Synch m a [c]
+parSplit n select s = forceS >>> Prelude.foldr
+    (\i sPar -> ((arr (select i) >>> s i) &&& sPar) >>> arr (uncurry (:)))
+    (arr (select 0) >>> s 0 >>> arr return)
+    [1..n-1]
+
+-- | Run a number of copies of a network in parallel
+parList :: Monad m
+    => Int                   -- ^ Number of parallel networks
+    -> (Int -> Synch m a b)  -- ^ Network to parallelize
+    -> Synch m [a] [b]
+parList n s = Prelude.foldr
+    (\i sPar -> arr (\(a:as) -> (a,as)) >>> s i *** sPar >>> arr (uncurry (:)))
+    (arr Prelude.head >>> s 0 >>> arr return)
+    [1..n-1]
 
