@@ -10,10 +10,9 @@ import Control.Arrow
 import Control.Category (Category)
 import qualified Control.Category as Category
 
-import Feldspar
+import Feldspar.Run
 import Feldspar.Vector
 import Feldspar.Validated
-import Feldspar.Software
 import Feldspar.Synch.System
 
 
@@ -56,8 +55,8 @@ runSynch (Synch init) = System $ do
 -- | Run a synchronous stream transformer with stdin/stdout as input/output
 interactSynch
     :: (SmallType a, Formattable a, SmallType b, Formattable b)
-    => Synch Software (Data a) (Data b)
-    -> Software ()
+    => Synch Run (Data a) (Data b)
+    -> Run ()
 interactSynch (Synch init) = do
     f <- init
     while (return true) $ do
@@ -237,7 +236,7 @@ chunk n (Synch init) = forceS >>> Synch (do
 
 -- | Identity stream transformer that traces to stdout
 tracer :: (SmallType a, Formattable a) =>
-    String -> Synch Software (Data a) (Data a)
+    String -> Synch Run (Data a) (Data a)
 tracer prefix = forceS >>> arrProg (\a -> do
     fput stdout prefix a "\n"
     return a)

@@ -12,9 +12,8 @@ import qualified Prelude as P
 import Control.Arrow
 import qualified Data.Char as Char
 
-import Feldspar
+import Feldspar.Run
 import Feldspar.Validated
-import Feldspar.Software
 
 import Feldspar.Synch.System
 import Feldspar.Synch
@@ -40,7 +39,7 @@ char getch()
 }
 |]
 
-getch :: Software (Event (Data Word8))
+getch :: Run (Event (Data Word8))
 getch = do
     addInclude "<stdio.h>"
     addInclude "<sys/ioctl.h>"
@@ -119,7 +118,7 @@ genSinePolyE
     >>> arr (P.foldr (+) 0)
 
 -- | Monophonic synth
-synth :: ALSA -> PCM -> Data Length -> Synch Software () ()
+synth :: ALSA -> PCM -> Data Length -> Synch Run () ()
 synth alsa pcm n
     =   arrSource getch
     >>> arr (fmap interpretChar)
@@ -128,7 +127,7 @@ synth alsa pcm n
     >>> arrProg (writePCM alsa pcm)
 
 -- | Polyphonic synth
-synthPoly :: ALSA -> PCM -> Data Length -> Synch Software () ()
+synthPoly :: ALSA -> PCM -> Data Length -> Synch Run () ()
 synthPoly alsa pcm n
     =   arrSource getch
     >>> arr (fmap interpretChar)
@@ -136,14 +135,14 @@ synthPoly alsa pcm n
     >>> chunk n (genSinePolyE >>> arr quantize)
     >>> arrProg (writePCM alsa pcm)
 
-synthMain :: Software ()
+synthMain :: Run ()
 synthMain = do
     alsa@(ALSA {..}) <- importALSA
     pcm <- newPCM
     n   <- initPCM pcm Playback 1 bufferLength periodLength
     execSystem $ runSynch $ synth alsa pcm n
 
-synthPolyMain :: Software ()
+synthPolyMain :: Run ()
 synthPolyMain = do
     alsa@(ALSA {..}) <- importALSA
     pcm <- newPCM
