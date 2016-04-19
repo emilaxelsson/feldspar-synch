@@ -113,9 +113,7 @@ genSineE = liftEvent genSine >>> arr (\a -> fromValidated a 0)
 -- | Polyphonic version of 'genSineE'. It runs a number of 'genSineE' networks
 -- in parallel, and sums their output.
 genSinePolyE :: MonadComp m => Synch m [Event Frequency] (Data Double)
-genSinePolyE
-    =   parList nPoly (\_ -> genSineE >>> arr (*0.17))
-    >>> arr (P.foldr (+) 0)
+genSinePolyE = parList nPoly (const genSineE) >>> arr (P.foldr (+) 0)
 
 -- | Monophonic synth
 synth :: ALSA -> PCM -> Data Length -> Synch Run () ()
@@ -132,7 +130,7 @@ synthPoly alsa pcm n
     =   arrSource getch
     >>> arr (fmap interpretChar)
     >>> keyPoly
-    >>> chunk n (genSinePolyE >>> arr quantize)
+    >>> chunk n (genSinePolyE >>> arr (*0.17) >>> arr quantize)
     >>> arrProg (writePCM alsa pcm)
 
 synthMain :: Run ()
