@@ -227,7 +227,7 @@ formatBits = 16
   -- Note: this constant is hard coded in the C code above
 
 newPCM_ :: Run PCM
-newPCM_ = fmap PCM $ newObject "snd_pcm_t" True
+newPCM_ = fmap PCM $ newNamedObject "pcm" "snd_pcm_t" True
 
 initPCM_
     :: PCM -> StreamMode -> Data Word32 -> Data Word32 -> Data Word32
@@ -287,11 +287,11 @@ importALSA = do
 
 -- | Convert a floating point value in the range [-1,1] to a 16-bit integer in
 --- the range [minBound+1, maxBound]
-quantize :: forall a . (RealFrac a, SmallType a) => Data a -> Data Int16
+quantize :: forall a . (RealFrac a, PrimType a) => Data a -> Data Int16
 quantize a = Feldspar.Run.round (a * fromIntegral (maxBound :: Int16) :: Data a)
 
 -- | Convert a floating point value in the range [-1,1] to a 16-bit integer in
 --- the range [minBound+1, maxBound]
-dequantize :: (Fractional a, SmallType a) => Data Int16 -> Data a
+dequantize :: (Fractional a, PrimType a) => Data Int16 -> Data a
 dequantize a = i2n a / fromIntegral (maxBound :: Int16)
 

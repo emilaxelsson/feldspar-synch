@@ -9,13 +9,12 @@ module Main where
 import qualified Prelude ()
 import Control.Arrow
 
-import Feldspar
-import Feldspar.IO
+import Feldspar.Run
 
 import Feldspar.Synch.System
 import Feldspar.Synch
 
-import Feldspar.SimpleVector
+import Feldspar.Vector
 
 import ALSA
 
@@ -24,16 +23,16 @@ import ALSA
 bufferLength = 25000  -- Sound device buffer length, 25s
 periodLength = 3000   -- Chunk length (approximate main loop period), 3s
 
-capture :: ALSA -> PCM -> PCM -> Data Length -> Synch () ()
+capture :: ALSA -> PCM -> PCM -> Data Length -> Synch Run () ()
 capture alsa capt play n
     =   arrSource (readPCM alsa capt n)
-    >>> arr (desugar . tweak . sugar)
+    >>> arrProg (fromPull . tweak . toPull)
     >>> arrProg (writePCM alsa play)
   where
-    tweak :: Vector1 Int16 -> Vector1 Int16
+    tweak :: Vector (Data Int16) -> Vector (Data Int16)
     tweak = reverse
 
-captureMain :: Program ()
+captureMain :: Run ()
 captureMain = do
     addInclude "\"feldspar_c99.h\""
     addInclude "\"feldspar_array.h\""
@@ -48,7 +47,9 @@ captureMain = do
                  --      we get an array declaration of unknown length.
     execSystem $ runSynch $ capture alsa capt play n
 
-runCapture = runCompiled [] captureMain ["-lm","-lasound"]
+runCapture = runCompiled'
+    defaultExtCompilerOpts {externalFlagsPost = ["-lm","-lasound"]}
+    captureMain
 
 main = icompile captureMain
 

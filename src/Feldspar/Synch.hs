@@ -54,7 +54,7 @@ runSynch (Synch init) = System $ do
 
 -- | Run a synchronous stream transformer with stdin/stdout as input/output
 interactSynch
-    :: (SmallType a, Formattable a, SmallType b, Formattable b)
+    :: (PrimType a, Formattable a, PrimType b, Formattable b)
     => Synch Run (Data a) (Data b)
     -> Run ()
 interactSynch (Synch init) = do
@@ -140,12 +140,12 @@ delay init = feedback (Just init) $ arr $ \(a,aPrev) -> (aPrev,a)
 -- value. Whenever there is no input event, the counter counts upwards from the
 -- previous value. If there is no set event in the first cycle, the counter
 -- starts from 0.
-count :: (Num a, SmallType a, MonadComp m) => Synch m (Event (Data a)) (Data a)
+count :: (Num a, PrimType a, MonadComp m) => Synch m (Event (Data a)) (Data a)
 count = feedback (Just 0) $ arr $ \(newEv,old) ->
     share (fromValidated newEv (old+1)) $ \next -> (next,next)
 
 -- | Settable counter that counts down to, and stops at, 0
-countDown :: (Num a, SmallType a, MonadComp m) => Synch m (Data a) (Data a)
+countDown :: (Num a, PrimType a, MonadComp m) => Synch m (Data a) (Data a)
 countDown = forceS >>> feedback (Just 0) (arr step)
     -- `forceS` needed to get value sharing in `step`
   where
@@ -164,7 +164,7 @@ hold n = arr (\a -> a ? n $ 0) >>> countDown >>> arr (>0)
 
 -- | Create a stream of values that cycle through the given range, separated by
 -- the given step length. It is assumed that @0 < stepLen < hi-lo@.
-cycleStep :: (Num a, SmallType a, MonadComp m)
+cycleStep :: (Num a, PrimType a, MonadComp m)
     => Data a                     -- ^ From
     -> Data a                     -- ^ To
     -> Synch m (Data a) (Data a)  -- ^ Step length -> value
@@ -235,8 +235,7 @@ chunk n (Synch init) = forceS >>> Synch (do
   --       Otherwise it would be re-initialized at every chunk.
 
 -- | Identity stream transformer that traces to stdout
-tracer :: (SmallType a, Formattable a) =>
-    String -> Synch Run (Data a) (Data a)
+tracer :: (PrimType a, Formattable a) => String -> Synch Run (Data a) (Data a)
 tracer prefix = forceS >>> arrProg (\a -> do
     fput stdout prefix a "\n"
     return a)
