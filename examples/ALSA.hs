@@ -17,8 +17,6 @@ module ALSA
 
 import Feldspar.Run
 import Feldspar.Vector
-import Language.Embedded.Imperative.CMD (Object (..))
-  -- TODO Export from Feldspar.Software.Internal
 
 
 
@@ -234,13 +232,13 @@ initPCM_
     -> Run (Data Length)
 initPCM_ pcm mode nChan bufTime perTime = callFun "initialize_pcm"
     [ addr $ objArg $ unPCM pcm
-    , objArg modeObj
+    , modeArg
     , valArg nChan
     , valArg bufTime
     , valArg perTime
     ]
   where
-    modeObj = Object False "snd_pcm_stream_t" $ case mode of
+    modeArg = constArg "snd_pcm_stream_t" $ case mode of
         Playback -> "SND_PCM_STREAM_PLAYBACK"
         Capture  -> "SND_PCM_STREAM_CAPTURE"
 

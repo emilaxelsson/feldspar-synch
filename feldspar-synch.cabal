@@ -67,5 +67,4 @@ test-suite Synth
     base,
     raw-feldspar,
     feldspar-synch,
-    imperative-edsl
 
