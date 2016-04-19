@@ -102,8 +102,7 @@ stepAngle freq = 2*pi*freq/sampleRate
 genSine :: MonadComp m => Synch m Frequency (Data Double)
 genSine = arr stepAngle >>> cycleStep 0 (2*pi) >>> arr sin >>> arr distort
   where
-    distort x = sign * x * x
-      where sign = x>=0 ? 1 $ (-1)  -- because `signum` doesn't work
+    distort x = signum x * x * x
 
 -- | Event-controlled sine wave. The wave only advances when there's an event,
 -- and the output is 0 when there is no event.
