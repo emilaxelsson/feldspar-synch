@@ -66,5 +66,5 @@ test-suite Synth
   build-depends:
     base,
     raw-feldspar,
-    feldspar-synch,
+    feldspar-synch
 
