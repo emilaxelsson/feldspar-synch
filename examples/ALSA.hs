@@ -15,6 +15,8 @@ module ALSA
 
 
 
+import Prelude ()
+
 import Feldspar.Run
 import Feldspar.Vector
 
@@ -286,10 +288,10 @@ importALSA = do
 -- | Convert a floating point value in the range [-1,1] to a 16-bit integer in
 --- the range [minBound+1, maxBound]
 quantize :: forall a . (RealFrac a, PrimType a) => Data a -> Data Int16
-quantize a = Feldspar.Run.round (a * fromIntegral (maxBound :: Int16) :: Data a)
+quantize a = round (a * i2n (maxBound :: Data Int16) :: Data a)
 
 -- | Convert a floating point value in the range [-1,1] to a 16-bit integer in
 --- the range [minBound+1, maxBound]
 dequantize :: (Fractional a, PrimType a) => Data Int16 -> Data a
-dequantize a = i2n a / fromIntegral (maxBound :: Int16)
+dequantize a = i2n a / i2n (maxBound :: Data Int16)
 

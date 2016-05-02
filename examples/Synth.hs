@@ -96,11 +96,11 @@ keyPoly = parSplit nPoly keyFilter (const key)
 -- | Compute the step angle corresponding to the given wave frequency at the
 -- specified sample rate
 stepAngle :: Frequency -> Data Double
-stepAngle freq = 2*pi*freq/sampleRate
+stepAngle freq = 2*π*freq/sampleRate
 
 -- | Generate a sine wave of the given frequency at the specified sample rate
 genSine :: MonadComp m => Synch m Frequency (Data Double)
-genSine = arr stepAngle >>> cycleStep 0 (2*pi) >>> arr sin >>> arr distort
+genSine = arr stepAngle >>> cycleStep 0 (2*π) >>> arr sin >>> arr distort
   where
     distort x = signum x * x * x
 
