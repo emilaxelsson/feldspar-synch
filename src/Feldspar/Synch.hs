@@ -145,7 +145,8 @@ count = feedback (Just 0) $ arr $ \(newEv,old) ->
     share (fromValidated newEv (old+1)) $ \next -> (next,next)
 
 -- | Settable counter that counts down to, and stops at, 0
-countDown :: (Num a, PrimType a, MonadComp m) => Synch m (Data a) (Data a)
+countDown :: (Num a, Ord a, PrimType a, MonadComp m) =>
+    Synch m (Data a) (Data a)
 countDown = forceS >>> feedback (Just 0) (arr step)
     -- `forceS` needed to get value sharing in `step`
   where
@@ -164,7 +165,7 @@ hold n = arr (\a -> a ? n $ 0) >>> countDown >>> arr (>0)
 
 -- | Create a stream of values that cycle through the given range, separated by
 -- the given step length. It is assumed that @0 < stepLen < hi-lo@.
-cycleStep :: (Num a, PrimType a, MonadComp m)
+cycleStep :: (Num a, Ord a, PrimType a, MonadComp m)
     => Data a                     -- ^ From
     -> Data a                     -- ^ To
     -> Synch m (Data a) (Data a)  -- ^ Step length -> value
