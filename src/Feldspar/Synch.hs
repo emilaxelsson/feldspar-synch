@@ -11,8 +11,7 @@ import Control.Category (Category)
 import qualified Control.Category as Category
 
 import Feldspar.Run
-import Feldspar.Vector
-import Feldspar.Validated
+import Feldspar.Data.Validated
 import Feldspar.Synch.System
 
 
@@ -219,9 +218,9 @@ holdEvent' n = forceS >>> Synch ( do
 
 -- | Run a stream function in chunks
 chunk :: (Forcible a, Syntax b, MonadComp m)
-    => Data Length             -- ^ Chunk size
-    -> Synch m a b             -- ^ Computation to speed up
-    -> Synch m a (Manifest b)  -- ^ Slow input -> slow output
+    => Data Length                           -- ^ Chunk size
+    -> Synch m a b                           -- ^ Computation to speed up
+    -> Synch m a (Dim1 (IArr (Internal b)))  -- ^ Slow input -> slow output
 chunk n (Synch init) = forceS >>> Synch (do
     f   <- init
     arr <- newArr n
@@ -230,7 +229,7 @@ chunk n (Synch init) = forceS >>> Synch (do
         b <- runKleisli f a
         setArr i b arr
       iarr <- unsafeFreezeArr arr
-      return $ Manifest n iarr
+      return $ Dim1 n iarr
     )
   -- Note: It's important that the argument is initialized outside of `stepper`.
   --       Otherwise it would be re-initialized at every chunk.

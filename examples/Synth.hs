@@ -13,7 +13,7 @@ import Control.Arrow
 import qualified Data.Char as Char
 
 import Feldspar.Run
-import Feldspar.Validated
+import Feldspar.Data.Validated
 
 import Feldspar.Synch.System
 import Feldspar.Synch

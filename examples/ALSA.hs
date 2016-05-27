@@ -18,7 +18,6 @@ module ALSA
 import Prelude ()
 
 import Feldspar.Run
-import Feldspar.Vector
 
 
 
@@ -211,8 +210,8 @@ data StreamMode = Playback | Capture
 data ALSA = ALSA
     { newPCM   :: Run PCM
     , initPCM  :: PCM -> StreamMode -> Data Word32 -> Data Word32 -> Data Word32 -> Run (Data Length)
-    , writePCM :: PCM -> Manifest (Data Int16) -> Run ()
-    , readPCM  :: PCM -> Data Length -> Run (Manifest (Data Int16))
+    , writePCM :: PCM -> Dim1 (IArr Int16) -> Run ()
+    , readPCM  :: PCM -> Data Length -> Run (Dim1 (IArr Int16))
     , closePCM :: PCM -> Run ()
     }
 
@@ -244,14 +243,14 @@ initPCM_ pcm mode nChan bufTime perTime = callFun "initialize_pcm"
         Playback -> "SND_PCM_STREAM_PLAYBACK"
         Capture  -> "SND_PCM_STREAM_CAPTURE"
 
-writePCM_ :: PCM -> Manifest (Data Int16) -> Run ()
-writePCM_ pcm (Manifest n samps) = callProc "write_pcm"
+writePCM_ :: PCM -> Dim1 (IArr Int16) -> Run ()
+writePCM_ pcm (Dim1 n samps) = callProc "write_pcm"
     [ objArg $ unPCM pcm
     , iarrArg samps
     , valArg n
     ]
 
-readPCM_ :: PCM -> Data Length -> Run (Manifest (Data Int16))
+readPCM_ :: PCM -> Data Length -> Run (Dim1 (IArr Int16))
 readPCM_ pcm len = do
     samps <- newArr len
     callProc "read_pcm"
@@ -260,7 +259,7 @@ readPCM_ pcm len = do
         , valArg len
         ]
     isamps <- unsafeFreezeArr samps
-    return $ Manifest len isamps
+    return $ Dim1 len isamps
 
 closePCM_ :: PCM -> Run ()
 closePCM_ pcm = callProc "snd_pcm_close" [objArg $ unPCM pcm]
