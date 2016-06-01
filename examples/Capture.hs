@@ -14,7 +14,7 @@ import Feldspar.Run
 import Feldspar.Synch.System
 import Feldspar.Synch
 
-import Feldspar.Vector
+import Feldspar.Data.Vector
 
 import ALSA
 
@@ -26,10 +26,10 @@ periodLength = 3000   -- Chunk length (approximate main loop period), 3s
 capture :: ALSA -> PCM -> PCM -> Data Length -> Synch Run () ()
 capture alsa capt play n
     =   arrSource (readPCM alsa capt n)
-    >>> arrProg (fromPull . tweak . toPull)
+    >>> arrProg (toValue . tweak . toPull)
     >>> arrProg (writePCM alsa play)
   where
-    tweak :: Vector (Data Int16) -> Vector (Data Int16)
+    tweak :: Pull (Data Int16) -> Pull (Data Int16)
     tweak = reverse
 
 captureMain :: Run ()
