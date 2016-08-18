@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Feldspar.Synch where
 
@@ -107,6 +108,18 @@ liftEvent (Synch init) = Synch $ do
         iff valid (runKleisli f a >>= setRef r) (return ())
         b <- unsafeFreezeRef r
         return (Validated valid b)
+
+class Forcible a
+  where
+    force :: MonadComp m => a -> m a
+
+instance {-# OVERLAPPABLE #-} Syntax a => Forcible a
+  where
+    force = shareM
+
+instance Forcible a => Forcible [a]
+  where
+    force = mapM force
 
 -- | Identity stream transformer that ensures that the stream elements are
 -- represented \"by value\"; i.e. they can be shared without recomputation.
@@ -229,8 +242,7 @@ chunk n (Synch init) = forceS >>> Synch (do
       for (0,1,Excl n) $ \i -> do
         b <- runKleisli f a
         setArr i b arr
-      iarr <- unsafeFreezeArr arr
-      return $ Manifest n iarr
+      unsafeFreezeToManifest n arr
     )
   -- Note: It's important that the argument is initialized outside of `stepper`.
   --       Otherwise it would be re-initialized at every chunk.

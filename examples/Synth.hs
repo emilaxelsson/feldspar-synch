@@ -147,11 +147,13 @@ synthPolyMain = do
     execSystem $ runSynch $ synthPoly alsa pcm n
 
 runSynth = runCompiled'
-    defaultExtCompilerOpts {externalFlagsPost = ["-lm","-lasound"]}
+    def
+    def {externalFlagsPost = ["-lm","-lasound"]}
     synthMain
 
 runSynthPoly = runCompiled'
-    defaultExtCompilerOpts {externalFlagsPost = ["-lm","-lasound"]}
+    def
+    def {externalFlagsPost = ["-lm","-lasound"]}
     synthPolyMain
 
 main = icompile synthMain
