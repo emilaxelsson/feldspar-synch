@@ -14,6 +14,7 @@ import qualified Control.Category as Category
 import Feldspar.Run
 import Feldspar.Data.Vector
 import Feldspar.Data.Validated
+import Feldspar.Data.Storable
 import Feldspar.Synch.System
 
 
@@ -108,18 +109,6 @@ liftEvent (Synch init) = Synch $ do
         iff valid (runKleisli f a >>= setRef r) (return ())
         b <- unsafeFreezeRef r
         return (Validated valid b)
-
-class Forcible a
-  where
-    force :: MonadComp m => a -> m a
-
-instance {-# OVERLAPPABLE #-} Syntax a => Forcible a
-  where
-    force = shareM
-
-instance Forcible a => Forcible [a]
-  where
-    force = mapM force
 
 -- | Identity stream transformer that ensures that the stream elements are
 -- represented \"by value\"; i.e. they can be shared without recomputation.
