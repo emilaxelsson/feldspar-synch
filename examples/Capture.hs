@@ -26,7 +26,7 @@ periodLength = 3000   -- Chunk length (approximate main loop period), 3s
 capture :: ALSA -> PCM -> PCM -> Data Length -> Synch Run () ()
 capture alsa capt play n
     =   arrSource (readPCM alsa capt n)
-    >>> arrProg (toValue . tweak . toPull)
+    >>> arrProg (manifestFresh . tweak . toPull)
     >>> arrProg (writePCM alsa play)
   where
     tweak :: Pull (Data Int16) -> Pull (Data Int16)
@@ -42,7 +42,8 @@ captureMain = do
     execSystem $ runSynch $ capture alsa capt play n
 
 runCapture = runCompiled'
-    defaultExtCompilerOpts {externalFlagsPost = ["-lm","-lasound"]}
+    def
+    def {externalFlagsPost = ["-lm","-lasound"]}
     captureMain
 
 main = icompile captureMain

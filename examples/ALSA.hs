@@ -247,7 +247,7 @@ initPCM_ pcm mode nChan bufTime perTime = callFun "initialize_pcm"
 writePCM_ :: PCM -> Manifest (Data Int16) -> Run ()
 writePCM_ pcm samps = callProc "write_pcm"
     [ objArg $ unPCM pcm
-    , iarrArg $ unManifest samps
+    , iarrArg samps
     , valArg $ length samps
     ]
 
@@ -259,7 +259,7 @@ readPCM_ pcm len = do
         , arrArg samps
         , valArg len
         ]
-    unsafeFreezeToManifest len samps
+    unsafeFreezeArr samps
 
 closePCM_ :: PCM -> Run ()
 closePCM_ pcm = callProc "snd_pcm_close" [objArg $ unPCM pcm]

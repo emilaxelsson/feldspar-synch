@@ -230,8 +230,8 @@ chunk n (Synch init) = forceS >>> Synch (do
     stepper $ \a -> do
       for (0,1,Excl n) $ \i -> do
         b <- runKleisli f a
-        setArr i b arr
-      unsafeFreezeToManifest n arr
+        setArr arr i b
+      unsafeFreezeArr arr
     )
   -- Note: It's important that the argument is initialized outside of `stepper`.
   --       Otherwise it would be re-initialized at every chunk.
