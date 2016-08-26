@@ -1,6 +1,8 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+-- | Yampa-style synchronous streams
+
 module Feldspar.Synch where
 
 

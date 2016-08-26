@@ -1,6 +1,6 @@
 name:                feldspar-synch
 version:             0.1
--- synopsis:
+synopsis:            Yampa-style synchronous streams for RAW-Feldspar
 -- description:
 license:             BSD3
 license-file:        LICENSE
